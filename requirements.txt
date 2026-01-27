@@ -1,1 +1,13 @@
-streamlit
+# Core dependencies
+anthropic>=0.39.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# CLI beautification
+rich>=13.7.0
+
+# Optional: for future Streamlit version
+# streamlit>=1.31.0
+# pandas>=2.2.0
+# plotly>=5.18.0
