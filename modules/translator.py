@@ -139,19 +139,24 @@ ORIGINAL TITLE:
 ORIGINAL CONTENT (HTML):
 {content}
 
+IMPORTANT SEO RULES:
+1. SLUG: Keep the ORIGINAL ENGLISH slug (do NOT translate the URL slug)
+2. FOCUS KEYWORD: Keep in ENGLISH (do NOT translate) - extract main keyword from title
+3. META DESCRIPTION: Write in {lang_config['name']} but include the ENGLISH focus keyword
+
 Provide your translation in this EXACT format:
 
 TRANSLATED_TITLE:
 [translated title - plain text, no HTML]
 
 TRANSLATED_SLUG:
-[SEO-friendly URL slug in target language, lowercase, hyphens only, no accents, max 75 chars]
+[KEEP ORIGINAL ENGLISH SLUG - extract from title, lowercase, hyphens only, do NOT translate]
 
 FOCUS_KEYWORD:
-[main SEO keyword for this recipe in target language, 2-4 words]
+[ENGLISH keyword from original title, 2-4 words, do NOT translate]
 
 SEO_DESCRIPTION:
-[compelling meta description in target language, 150-160 characters, includes focus keyword]
+[meta description in {lang_config['name']}, 150-160 chars, MUST include the ENGLISH focus keyword]
 
 TRANSLATED_CONTENT:
 [full translated content WITH ALL HTML TAGS PRESERVED]
