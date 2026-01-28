@@ -122,7 +122,11 @@ def init_session_state():
         'scraped_content': None,
         'published_url': None,
         'last_url': saved_config.get('last_url', ''),
-        'last_lang': saved_config.get('last_lang', 'es')
+        'last_lang': saved_config.get('last_lang', 'es'),
+        # Batch translation
+        'batch_articles': [],
+        'batch_selected': [],
+        'batch_results': None
     }
     
     for key, value in defaults.items():
@@ -259,15 +263,18 @@ def main_content():
     st.markdown("---")
     
     # Tabs
-    tab1, tab2, tab3 = st.tabs(["🚀 Traduire", "📋 Explorer", "📊 Historique"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🚀 Traduire", "📦 Batch (10 max)", "📋 Explorer", "📊 Historique"])
     
     with tab1:
         translate_tab()
     
     with tab2:
-        explore_tab()
+        batch_translate_tab()
     
     with tab3:
+        explore_tab()
+    
+    with tab4:
         history_tab()
 
 
@@ -387,6 +394,7 @@ def execute_translation(url, target_lang):
                     'word_count': translated['word_count'],
                     'target_url': f"https://{domain_map.get(target_lang)}/{translated['slug']}",
                     'focus_keyword': translated.get('focus_keyword', ''),
+                    'seo_title': translated.get('seo_title', ''),
                     'seo_description': translated.get('seo_description', '')
                 },
                 'target_lang': target_lang,
@@ -451,13 +459,18 @@ def display_translation_result():
     # SEO Info
     if result['translated'].get('focus_keyword') or result['translated'].get('seo_description'):
         st.markdown("### 🎯 SEO (Rank Math)")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Focus Keyword:**")
-            st.code(result['translated'].get('focus_keyword', 'N/A'))
-        with col2:
-            st.markdown("**Meta Description:**")
-            st.text_area("", result['translated'].get('seo_description', ''), height=80, disabled=True, label_visibility="collapsed")
+        
+        # Focus Keyword
+        st.markdown("**Focus Keyword (English):**")
+        st.code(result['translated'].get('focus_keyword', 'N/A'))
+        
+        # SEO Title (optimized)
+        st.markdown("**SEO Title (optimized):**")
+        st.code(result['translated'].get('seo_title', result['translated']['title']))
+        
+        # Meta Description
+        st.markdown("**Meta Description:**")
+        st.text_area("", result['translated'].get('seo_description', ''), height=80, disabled=True, label_visibility="collapsed")
     
     # === SECTION PUBLICATION WORDPRESS ===
     st.markdown("---")
@@ -588,10 +601,11 @@ def push_to_wordpress(result, status, category, upload_image, use_gutenberg=True
             # Convertir en blocs Gutenberg
             content = formatter.format_for_wordpress(content)
         
-        # SEO fields
+        # SEO fields (Rank Math optimized)
         focus_keyword = result['translated'].get('focus_keyword', '')
         seo_description = result['translated'].get('seo_description', '')
-        seo_title = result['translated']['title']
+        # Use optimized SEO title if available, otherwise use translated title
+        seo_title = result['translated'].get('seo_title', '') or result['translated']['title']
         
         # Publication
         pub_result = publisher.publish_post(
@@ -614,6 +628,324 @@ def push_to_wordpress(result, status, category, upload_image, use_gutenberg=True
             st.rerun()
         else:
             st.error(f"❌ Erreur: {pub_result['error']}")
+
+
+def batch_translate_tab():
+    """Onglet traduction en batch - jusqu'à 10 articles"""
+    
+    st.markdown("### 📦 Traduction en Batch")
+    st.markdown("Sélectionnez jusqu'à **10 articles** et traduisez-les en une fois !")
+    
+    # Configuration
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        sitemap_url = st.text_input(
+            "📍 Sitemap URL",
+            value="https://jelorec.com/sitemap_index.xml",
+            key="batch_sitemap"
+        )
+    
+    with col2:
+        target_lang = st.selectbox(
+            "🎯 Langue",
+            options=['es', 'fr', 'de', 'en'],
+            format_func=lambda x: {'es': '🇪🇸 ES', 'fr': '🇫🇷 FR', 'de': '🇩🇪 DE', 'en': '🇬🇧 EN'}[x],
+            key="batch_lang"
+        )
+    
+    with col3:
+        max_articles = st.selectbox(
+            "📊 Charger",
+            options=[10, 20, 30, 50],
+            key="batch_max"
+        )
+    
+    # Charger les articles
+    if st.button("🔎 Charger les articles", key="batch_load"):
+        with st.spinner("Chargement du sitemap..."):
+            try:
+                parser = SitemapParser(sitemap_url)
+                articles = parser.get_all_recipes(limit=max_articles)
+                st.session_state.batch_articles = articles
+                st.success(f"✅ {len(articles)} articles chargés!")
+            except Exception as e:
+                st.error(f"❌ Erreur: {e}")
+    
+    # Afficher les articles avec checkboxes
+    if 'batch_articles' in st.session_state and st.session_state.batch_articles:
+        articles = st.session_state.batch_articles
+        
+        st.markdown("---")
+        st.markdown("### 📋 Sélectionnez les articles (max 10)")
+        
+        # Initialize selected articles
+        if 'batch_selected' not in st.session_state:
+            st.session_state.batch_selected = []
+        
+        # Select all / Deselect all
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            if st.button("✅ Sélectionner 10 premiers"):
+                st.session_state.batch_selected = [a['url'] for a in articles[:10]]
+                st.rerun()
+        with col2:
+            if st.button("❌ Tout désélectionner"):
+                st.session_state.batch_selected = []
+                st.rerun()
+        with col3:
+            selected_count = len(st.session_state.batch_selected)
+            if selected_count > 10:
+                st.warning(f"⚠️ {selected_count} sélectionnés (max 10)")
+            else:
+                st.info(f"📊 {selected_count}/10 sélectionnés")
+        
+        # Display articles with checkboxes
+        for i, article in enumerate(articles):
+            url = article['url']
+            # Extract title from URL
+            title = url.split('/')[-2] if url.endswith('/') else url.split('/')[-1]
+            title = title.replace('-', ' ').title()
+            
+            is_selected = url in st.session_state.batch_selected
+            
+            col1, col2 = st.columns([0.5, 5])
+            with col1:
+                if st.checkbox("", value=is_selected, key=f"batch_cb_{i}"):
+                    if url not in st.session_state.batch_selected:
+                        if len(st.session_state.batch_selected) < 10:
+                            st.session_state.batch_selected.append(url)
+                else:
+                    if url in st.session_state.batch_selected:
+                        st.session_state.batch_selected.remove(url)
+            with col2:
+                st.markdown(f"**{i+1}.** {title}")
+                st.caption(url)
+        
+        # Translation button
+        st.markdown("---")
+        
+        selected_urls = st.session_state.batch_selected
+        
+        if selected_urls:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button(f"🚀 TRADUIRE {len(selected_urls)} ARTICLES", type="primary", use_container_width=True):
+                    execute_batch_translation(selected_urls, target_lang)
+        else:
+            st.warning("⚠️ Sélectionnez au moins 1 article")
+    
+    # Display batch results
+    if 'batch_results' in st.session_state and st.session_state.batch_results:
+        display_batch_results()
+
+
+def execute_batch_translation(urls, target_lang):
+    """Exécuter la traduction en batch"""
+    
+    if not st.session_state.api_key:
+        st.error("❌ Configurez votre clé API OpenRouter")
+        return
+    
+    results = []
+    
+    # Progress
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    total = len(urls)
+    
+    for i, url in enumerate(urls):
+        status_text.text(f"🔄 Traduction {i+1}/{total}: {url[:50]}...")
+        
+        try:
+            # Scrape
+            scraper = RecipeScraper()
+            recipe_data = scraper.scrape(url)
+            
+            if not recipe_data:
+                results.append({'url': url, 'success': False, 'error': 'Scraping failed'})
+                continue
+            
+            # Translate
+            translator = RecipeTranslator(st.session_state.api_key)
+            translated = translator.translate(
+                title=recipe_data['title'],
+                content=recipe_data['content'],
+                target_lang=target_lang
+            )
+            
+            # Adapt links
+            link_adapter = LinkAdapter()
+            domain_map = {'fr': 'jelorec.com', 'es': 'dietaypeso.com', 'de': 'allemuffins.de', 'en': 'allmuffins.com'}
+            
+            adapted_content = link_adapter.adapt_links(
+                translated['content'],
+                target_domain=domain_map.get(target_lang),
+                lang_code=target_lang
+            )
+            
+            # Store result
+            result = {
+                'url': url,
+                'success': True,
+                'original': recipe_data,
+                'translated': {
+                    'title': translated['title'],
+                    'slug': translated['slug'],
+                    'content': adapted_content,
+                    'word_count': translated['word_count'],
+                    'target_url': f"https://{domain_map.get(target_lang)}/{translated['slug']}",
+                    'focus_keyword': translated.get('focus_keyword', ''),
+                    'seo_title': translated.get('seo_title', ''),
+                    'seo_description': translated.get('seo_description', '')
+                },
+                'target_lang': target_lang
+            }
+            
+            results.append(result)
+            
+            # Save JSON
+            slug = translated['slug'][:30]
+            filename = f"translation_{slug}.json"
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            
+        except Exception as e:
+            results.append({'url': url, 'success': False, 'error': str(e)})
+        
+        progress_bar.progress((i + 1) / total)
+    
+    st.session_state.batch_results = results
+    status_text.text("✅ Traduction batch terminée!")
+    st.balloons()
+    st.rerun()
+
+
+def display_batch_results():
+    """Afficher les résultats du batch"""
+    
+    results = st.session_state.batch_results
+    
+    st.markdown("---")
+    st.markdown("## 📊 Résultats du Batch")
+    
+    # Summary
+    success_count = sum(1 for r in results if r.get('success'))
+    fail_count = len(results) - success_count
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("✅ Succès", success_count)
+    with col2:
+        st.metric("❌ Échecs", fail_count)
+    with col3:
+        st.metric("📊 Total", len(results))
+    
+    # Results table
+    for i, result in enumerate(results):
+        if result.get('success'):
+            with st.expander(f"✅ {i+1}. {result['translated']['title'][:50]}...", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"**Original:** {result['original']['title']}")
+                    st.markdown(f"**Traduit:** {result['translated']['title']}")
+                    st.markdown(f"**Slug:** `{result['translated']['slug']}`")
+                with col2:
+                    st.markdown(f"**Focus Keyword:** {result['translated'].get('focus_keyword', 'N/A')}")
+                    st.markdown(f"**Mots:** {result['translated']['word_count']}")
+                
+                # Publish button for this article
+                if st.session_state.wp_connected:
+                    if st.button(f"📤 Publier", key=f"pub_batch_{i}"):
+                        publish_single_from_batch(result, i)
+        else:
+            st.error(f"❌ {i+1}. {result['url'][:50]}... - {result.get('error', 'Unknown error')}")
+    
+    # Publish all button
+    st.markdown("---")
+    
+    if st.session_state.wp_connected:
+        successful_results = [r for r in results if r.get('success')]
+        if successful_results:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button(f"📤 PUBLIER TOUT ({len(successful_results)} articles)", type="primary", use_container_width=True):
+                    publish_all_batch(successful_results)
+    else:
+        st.warning("⚠️ Connectez-vous à WordPress pour publier")
+    
+    # Clear results
+    if st.button("🗑️ Effacer les résultats"):
+        st.session_state.batch_results = None
+        st.session_state.batch_selected = []
+        st.rerun()
+
+
+def publish_single_from_batch(result, index):
+    """Publier un seul article du batch"""
+    
+    with st.spinner(f"📤 Publication..."):
+        publisher = WordPressPublisher(
+            st.session_state.wp_site_url,
+            st.session_state.wp_username,
+            st.session_state.wp_password
+        )
+        
+        pub_result = publisher.publish_post(
+            title=result['translated']['title'],
+            content=result['translated']['content'],
+            slug=result['translated']['slug'],
+            status='draft',
+            focus_keyword=result['translated'].get('focus_keyword', ''),
+            seo_title=result['translated'].get('seo_title', ''),
+            seo_description=result['translated'].get('seo_description', '')
+        )
+        
+        if pub_result['success']:
+            st.success(f"✅ Publié: {pub_result['post_url']}")
+        else:
+            st.error(f"❌ Erreur: {pub_result['error']}")
+
+
+def publish_all_batch(results):
+    """Publier tous les articles du batch"""
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    publisher = WordPressPublisher(
+        st.session_state.wp_site_url,
+        st.session_state.wp_username,
+        st.session_state.wp_password
+    )
+    
+    success_count = 0
+    total = len(results)
+    
+    for i, result in enumerate(results):
+        status_text.text(f"📤 Publication {i+1}/{total}...")
+        
+        try:
+            pub_result = publisher.publish_post(
+                title=result['translated']['title'],
+                content=result['translated']['content'],
+                slug=result['translated']['slug'],
+                status='draft',
+                focus_keyword=result['translated'].get('focus_keyword', ''),
+                seo_title=result['translated'].get('seo_title', ''),
+                seo_description=result['translated'].get('seo_description', '')
+            )
+            
+            if pub_result['success']:
+                success_count += 1
+        except Exception as e:
+            pass
+        
+        progress_bar.progress((i + 1) / total)
+    
+    status_text.text(f"✅ {success_count}/{total} articles publiés!")
+    st.balloons()
 
 
 def explore_tab():
