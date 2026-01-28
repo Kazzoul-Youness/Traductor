@@ -637,7 +637,7 @@ def batch_translate_tab():
     st.markdown("Sélectionnez jusqu'à **10 articles** et traduisez-les en une fois !")
     
     # Configuration
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([3, 1])
     
     with col1:
         sitemap_url = st.text_input(
@@ -654,19 +654,12 @@ def batch_translate_tab():
             key="batch_lang"
         )
     
-    with col3:
-        max_articles = st.selectbox(
-            "📊 Charger",
-            options=[10, 20, 30, 50],
-            key="batch_max"
-        )
-    
     # Charger les articles
-    if st.button("🔎 Charger les articles", key="batch_load"):
-        with st.spinner("Chargement du sitemap..."):
+    if st.button("🔎 Charger TOUS les articles", key="batch_load"):
+        with st.spinner("Chargement du sitemap complet..."):
             try:
                 parser = SitemapParser(sitemap_url)
-                articles = parser.get_all_recipes(limit=max_articles)
+                articles = parser.get_all_recipes(limit=None)
                 st.session_state.batch_articles = articles
                 st.success(f"✅ {len(articles)} articles chargés!")
             except Exception as e:
