@@ -858,7 +858,9 @@ def display_batch_results():
                 # Publish button for this article
                 if st.session_state.wp_connected:
                     if st.button(f"📤 Publier", key=f"pub_batch_{i}"):
-                        publish_single_from_batch(result, i)
+                        publish_single_from_batch(result, i, 
+                                                 st.session_state.get('batch_gutenberg', True),
+                                                 st.session_state.get('batch_images', True))
         else:
             st.error(f"❌ {i+1}. {result['url'][:50]}... - {result.get('error', 'Unknown error')}")
     
@@ -868,10 +870,20 @@ def display_batch_results():
     if st.session_state.wp_connected:
         successful_results = [r for r in results if r.get('success')]
         if successful_results:
+            st.markdown("### 📤 Options de publication")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                batch_gutenberg = st.checkbox("📦 Blocs Gutenberg", value=True, key="batch_gutenberg",
+                                             help="Convertir en blocs éditables")
+            with col2:
+                batch_images = st.checkbox("🖼️ Transférer images", value=True, key="batch_images",
+                                          help="Upload featured image et images du contenu")
+            
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 if st.button(f"📤 PUBLIER TOUT ({len(successful_results)} articles)", type="primary", use_container_width=True):
-                    publish_all_batch(successful_results)
+                    publish_all_batch(successful_results, batch_gutenberg, batch_images)
     else:
         st.warning("⚠️ Connectez-vous à WordPress pour publier")
     
@@ -882,8 +894,8 @@ def display_batch_results():
         st.rerun()
 
 
-def publish_single_from_batch(result, index):
-    """Publier un seul article du batch"""
+def publish_single_from_batch(result, index, use_gutenberg=True, upload_images=True):
+    """Publier un seul article du batch avec Gutenberg et images"""
     
     with st.spinner(f"📤 Publication..."):
         publisher = WordPressPublisher(
@@ -892,10 +904,29 @@ def publish_single_from_batch(result, index):
             st.session_state.wp_password
         )
         
+        # Préparer le contenu
+        content = result['translated']['content']
+        
+        # Convertir en blocs Gutenberg
+        if use_gutenberg:
+            formatter = ContentFormatter()
+            content = formatter.format_for_wordpress(content)
+        
+        # Images
+        featured_image = None
+        content_images = []
+        if upload_images:
+            featured_image = result['original'].get('featured_image')
+            if not featured_image and result['original'].get('images'):
+                featured_image = result['original']['images'][0]
+            content_images = result['original'].get('images', [])
+        
         pub_result = publisher.publish_post(
             title=result['translated']['title'],
-            content=result['translated']['content'],
+            content=content,
             slug=result['translated']['slug'],
+            featured_image_url=featured_image,
+            content_images=content_images,
             status='draft',
             focus_keyword=result['translated'].get('focus_keyword', ''),
             seo_title=result['translated'].get('seo_title', ''),
@@ -908,8 +939,8 @@ def publish_single_from_batch(result, index):
             st.error(f"❌ Erreur: {pub_result['error']}")
 
 
-def publish_all_batch(results):
-    """Publier tous les articles du batch"""
+def publish_all_batch(results, use_gutenberg=True, upload_images=True):
+    """Publier tous les articles du batch avec Gutenberg et images"""
     
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -920,17 +951,37 @@ def publish_all_batch(results):
         st.session_state.wp_password
     )
     
+    formatter = ContentFormatter()
+    
     success_count = 0
     total = len(results)
     
     for i, result in enumerate(results):
-        status_text.text(f"📤 Publication {i+1}/{total}...")
+        status_text.text(f"📤 Publication {i+1}/{total}: {result['translated']['title'][:30]}...")
         
         try:
+            # Préparer le contenu
+            content = result['translated']['content']
+            
+            # Convertir en blocs Gutenberg
+            if use_gutenberg:
+                content = formatter.format_for_wordpress(content)
+            
+            # Images
+            featured_image = None
+            content_images = []
+            if upload_images:
+                featured_image = result['original'].get('featured_image')
+                if not featured_image and result['original'].get('images'):
+                    featured_image = result['original']['images'][0]
+                content_images = result['original'].get('images', [])
+            
             pub_result = publisher.publish_post(
                 title=result['translated']['title'],
-                content=result['translated']['content'],
+                content=content,
                 slug=result['translated']['slug'],
+                featured_image_url=featured_image,
+                content_images=content_images,
                 status='draft',
                 focus_keyword=result['translated'].get('focus_keyword', ''),
                 seo_title=result['translated'].get('seo_title', ''),
