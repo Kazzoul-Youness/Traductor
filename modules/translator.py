@@ -139,24 +139,37 @@ ORIGINAL TITLE:
 ORIGINAL CONTENT (HTML):
 {content}
 
-IMPORTANT SEO RULES:
-1. SLUG: Keep the ORIGINAL ENGLISH slug (do NOT translate the URL slug)
-2. FOCUS KEYWORD: Keep in ENGLISH (do NOT translate) - extract main keyword from title
-3. META DESCRIPTION: Write in {lang_config['name']} but include the ENGLISH focus keyword
+IMPORTANT SEO RULES (RANK MATH OPTIMIZATION - 100% TRANSLATED):
+
+ALL fields must be 100% in {lang_config['name']} language. NO English words.
+
+1. FOCUS KEYWORD: Translate to {lang_config['name']} (2-4 words)
+2. SLUG: Translate to {lang_config['name']}, lowercase, hyphens, NO accents
+3. SEO TITLE MUST:
+   - START with the TRANSLATED focus keyword
+   - Include a NUMBER (like 7, 10, 2026, etc.)
+   - Include a POWER WORD in {lang_config['name']} (Increíble, Secreto, Esencial, Poderoso, Mejor, Definitivo)
+   - Include a SENTIMENT WORD in {lang_config['name']} (Mejor, Perfecto, Delicioso, Asombroso)
+   - Max 60 characters
+4. META DESCRIPTION: 100% in {lang_config['name']}, MUST include the translated focus keyword, 150-160 chars
 
 Provide your translation in this EXACT format:
 
 TRANSLATED_TITLE:
-[translated title - plain text, no HTML]
+[Title 100% translated to {lang_config['name']}, MUST contain the focus keyword]
 
 TRANSLATED_SLUG:
-[KEEP ORIGINAL ENGLISH SLUG - extract from title, lowercase, hyphens only, do NOT translate]
+[Slug in {lang_config['name']}, lowercase, hyphens only, NO accents (é→e, ñ→n, etc.)]
 
 FOCUS_KEYWORD:
-[ENGLISH keyword from original title, 2-4 words, do NOT translate]
+[Keyword translated to {lang_config['name']}, 2-4 words]
+
+SEO_TITLE:
+[MUST start with translated focus keyword + number + power word, max 60 chars, 100% {lang_config['name']}]
+Example: "Desintoxicación Pérdida Peso: 7 Increíbles Beneficios | 2026"
 
 SEO_DESCRIPTION:
-[meta description in {lang_config['name']}, 150-160 chars, MUST include the ENGLISH focus keyword]
+[100% {lang_config['name']}, MUST include translated focus keyword, 150-160 chars]
 
 TRANSLATED_CONTENT:
 [full translated content WITH ALL HTML TAGS PRESERVED]
@@ -174,14 +187,19 @@ Begin translation now:"""
         title = title_match.group(1).strip() if title_match else "Untitled"
         
         # Extract slug
-        slug_match = re.search(r'TRANSLATED_SLUG:\s*(.+?)(?=\n\n|\nFOCUS_KEYWORD:|\nTRANSLATED_CONTENT:)', 
+        slug_match = re.search(r'TRANSLATED_SLUG:\s*(.+?)(?=\n\n|\nFOCUS_KEYWORD:|\nSEO_TITLE:|\nTRANSLATED_CONTENT:)', 
                               response, re.DOTALL)
         slug = slug_match.group(1).strip() if slug_match else self._generate_slug(title)
         
         # Extract focus keyword (for Rank Math SEO)
-        keyword_match = re.search(r'FOCUS_KEYWORD:\s*(.+?)(?=\n\n|\nSEO_DESCRIPTION:|\nTRANSLATED_CONTENT:)', 
+        keyword_match = re.search(r'FOCUS_KEYWORD:\s*(.+?)(?=\n\n|\nSEO_TITLE:|\nSEO_DESCRIPTION:|\nTRANSLATED_CONTENT:)', 
                                  response, re.DOTALL)
         focus_keyword = keyword_match.group(1).strip() if keyword_match else ""
+        
+        # Extract SEO title (for Rank Math - optimized with power words, numbers)
+        seo_title_match = re.search(r'SEO_TITLE:\s*(.+?)(?=\n\n|\nSEO_DESCRIPTION:|\nTRANSLATED_CONTENT:)', 
+                                   response, re.DOTALL)
+        seo_title = seo_title_match.group(1).strip() if seo_title_match else title
         
         # Extract SEO description (for Rank Math)
         seo_desc_match = re.search(r'SEO_DESCRIPTION:\s*(.+?)(?=\n\n|\nTRANSLATED_CONTENT:)', 
@@ -196,6 +214,7 @@ Begin translation now:"""
         title = title.replace('**', '').strip()
         slug = slug.replace('**', '').strip().lower()
         focus_keyword = focus_keyword.replace('**', '').strip()
+        seo_title = seo_title.replace('**', '').strip()
         seo_description = seo_description.replace('**', '').strip()
         content = content.strip()
         
@@ -209,6 +228,7 @@ Begin translation now:"""
             'word_count': len(content.split()),
             'target_lang': target_lang,
             'focus_keyword': focus_keyword,
+            'seo_title': seo_title,
             'seo_description': seo_description
         }
     
