@@ -40,16 +40,7 @@ class WordPressPublisher:
     def test_connection(self) -> Dict:
         """Test the WordPress connection"""
         try:
-            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-                # First, test if REST API is accessible at all
-                api_test = client.get(f"{self.site_url}/wp-json/")
-                
-                if api_test.status_code == 404:
-                    return {
-                        'success': False,
-                        'error': "API REST WordPress non trouvée. Vérifiez l'URL du site."
-                    }
-                
+            with httpx.Client(timeout=15.0) as client:
                 # Test authenticated access
                 response = client.get(
                     f"{self.api_base}/users/me",
@@ -63,24 +54,12 @@ class WordPressPublisher:
                         'user': user.get('name', 'Unknown'),
                         'site': self.site_url
                     }
-                elif response.status_code == 401:
-                    return {
-                        'success': False,
-                        'error': "401 Non autorisé - Vérifiez username et Application Password"
-                    }
-                elif response.status_code == 403:
-                    return {
-                        'success': False,
-                        'error': "403 Accès refusé - Plugin de sécurité bloque l'API. Désactivez Wordfence/Sucuri ou autorisez l'IP."
-                    }
                 else:
                     return {
                         'success': False,
                         'error': f"HTTP {response.status_code}"
                     }
                     
-        except httpx.ConnectError:
-            return {'success': False, 'error': "Impossible de se connecter au site"}
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
